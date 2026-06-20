@@ -1,0 +1,11 @@
+[Unit]
+Description=Keyboard backlight Fn-key listener (kbdlight)
+After=systemd-modules-load.service
+
+[Service]
+ExecStart=/usr/local/bin/kbdlight-listen
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

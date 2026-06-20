@@ -21,6 +21,7 @@ fi
 echo "==> binaries"
 install -m 0755 "$HERE/kbdlight"        /usr/local/bin/kbdlight
 install -m 0755 "$HERE/kbdlight-gui.py" /usr/local/bin/kbdlight-gui
+install -m 0755 "$HERE/kbdlight-listen" /usr/local/bin/kbdlight-listen
 
 echo "==> desktop entry"
 install -m 0644 "$HERE/data/kbdlight.desktop" /usr/share/applications/kbdlight.desktop
@@ -47,6 +48,19 @@ install -m 0644 "$HERE/data/kbdlight-restore.service" /etc/systemd/system/kbdlig
 install -m 0755 "$HERE/data/kbdlight-resume"          /usr/lib/systemd/system-sleep/kbdlight-resume
 systemctl daemon-reload
 systemctl enable kbdlight-restore.service >/dev/null 2>&1 || true
+
+echo "==> Fn-key listener (Fn+*/+/- -> kbdlight)"
+install -m 0644 "$HERE/data/kbdlight-keys.service" /etc/systemd/system/kbdlight-keys.service
+systemctl daemon-reload
+systemctl enable --now kbdlight-keys.service >/dev/null 2>&1 || true
+# Stop the desktop from also handling these keys (avoids double brightness steps).
+if [ -n "${SUDO_USER:-}" ] && command -v gsettings >/dev/null 2>&1; then
+    uid="$(id -u "$SUDO_USER")"
+    for k in keyboard-brightness-up-static keyboard-brightness-down-static keyboard-brightness-toggle-static; do
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+            gsettings set org.gnome.settings-daemon.plugins.media-keys "$k" "@as []" 2>/dev/null || true
+    done
+fi
 
 echo
 echo "Done. Try:  kbdlight color red   |   kbdlight set 60   |   kbdlight-gui"

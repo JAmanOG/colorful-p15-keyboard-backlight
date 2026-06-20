@@ -37,8 +37,8 @@ ls /sys/class/leds | grep -i kbd                                  # (probably no
 | patched `tuxedo_keyboard` (via DKMS) | exposes `/sys/class/leds/rgb:kbd_backlight` (brightness + RGB) |
 | `kbdlight` | command-line control (on/off/brightness/colour) |
 | `kbdlight-gui` | GTK4/Adwaita app — slider, colour swatches, custom colour picker |
-| `Fn` keys | `Fn`+`*` toggle, `Fn`+`+/-` brightness (handled by GNOME via upower) |
-| GNOME slider | native keyboard-backlight slider in the system menu |
+| `Fn` keys | `Fn`+`*` toggle, `Fn`+`+/-` brightness — via the `kbdlight-keys` listener service (works on any desktop, no relogin) |
+| GNOME slider | native keyboard-backlight slider in the system menu (after a relogin) |
 | restore service | re-applies your setting at boot and after suspend/lock |
 
 On Windows the vendor app only offers a handful of preset colours — on Linux you
@@ -69,7 +69,9 @@ sudo FORCE_TYPE=243 ./install-driver.sh   # per-key RGB
 sudo FORCE_TYPE=auto ./install-driver.sh  # never force (trust firmware)
 ```
 
-Then log out/in once so GNOME picks up the new LED (for the slider and `Fn` keys).
+The `Fn` keys (`Fn`+`*` / `Fn`+`+/-`) work immediately via the `kbdlight-keys`
+listener service. The native GNOME *slider* additionally needs one logout/login
+(so gnome-settings-daemon picks up the new LED).
 
 ## Usage
 
@@ -125,11 +127,18 @@ sudo modprobe clevo_acpi clevo_wmi
 ls /sys/class/leds/rgb:kbd_backlight
 ```
 
-**`Fn` keys / GNOME slider do nothing** — log out and back in once (so
-gnome-settings-daemon and the shell see the LED). Verify the keys emit events:
+**`Fn` keys do nothing** — check the listener service:
 ```bash
-sudo evtest /dev/input/by-path/*platform-tuxedo_keyboard*    # press Fn+ +/-/*
+systemctl status kbdlight-keys.service          # should be active (running)
+sudo journalctl -u kbdlight-keys.service
 ```
+The keys emit `KEY_KBDILLUMUP/DOWN/TOGGLE` on the "TUXEDO Keyboard" input device;
+`install.sh` clears GNOME's built-in bindings for them so the listener is the
+sole handler. (The native GNOME *slider* is separate and needs one relogin.)
+
+**Fn keys do double brightness steps** — both the listener and GNOME are acting.
+Re-run `sudo ./install.sh` (it clears the GNOME bindings), or set them empty:
+`gsettings set org.gnome.settings-daemon.plugins.media-keys keyboard-brightness-up-static "@as []"` (and `-down-`/`-toggle-`).
 
 **"cannot write …/brightness"** — re-run `sudo ./install.sh` (sets the udev rule).
 Default access is granted to the `users` group; override with
@@ -155,8 +164,9 @@ install.sh          install the kbdlight CLI/GUI + udev + restore service
 uninstall.sh
 kbdlight            CLI
 kbdlight-gui.py     GTK4/Adwaita GUI
+kbdlight-listen     Fn-key listener (maps KBDILLUM keys -> kbdlight)
 driver/0001-force-clevo-kb-backlight-type.patch   the one-line driver fix
-data/               udev rule, .desktop, systemd restore units
+data/               udev rule, .desktop, systemd units (restore, resume, keys)
 ```
 
 ## Credits
