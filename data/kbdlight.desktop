@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Keyboard Backlight
+Comment=Control the RGB keyboard backlight
+Exec=kbdlight-gui
+Icon=input-keyboard
+Terminal=false
+Categories=Settings;HardwareSettings;Utility;
+Keywords=keyboard;backlight;rgb;light;led;

@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+#
+# kbdlight - control the keyboard backlight on the COLORFUL P15 23 (and other
+#            Tongfang/Clevo laptops exposing /sys/class/leds/rgb:kbd_backlight).
+#
+# The backlight is a single-zone RGB light driven by the tuxedo_keyboard driver.
+# Brightness is 0..max (usually 255); colour is an "R G B" triple (each 0..255).
+# Applying a colour requires writing multi_intensity and then re-writing
+# brightness, which is what triggers the driver to push the change to the EC.
+#
+set -euo pipefail
+
+LED="${KBDLIGHT_LED:-/sys/class/leds/rgb:kbd_backlight}"
+STATE="${KBDLIGHT_STATE:-/var/lib/kbdlight/state}"
+
+die() { echo "kbdlight: $*" >&2; exit 1; }
+
+wait_for_led() {
+    # Module load can race with early boot/resume; wait briefly for the node.
+    local tries="${1:-50}"
+    while [ ! -e "$LED/brightness" ] && [ "$tries" -gt 0 ]; do
+        sleep 0.1; tries=$((tries - 1))
+    done
+}
+
+need_led() {
+    [ -e "$LED/brightness" ] || die "no backlight at $LED (is tuxedo_keyboard loaded?)"
+}
+
+max() { cat "$LED/max_brightness"; }
+
+# percent (0..100) -> raw (0..max)
+pct_to_raw() { local p="$1" m; m=$(max); echo $(( (p * m + 50) / 100 )); }
+raw_to_pct() { local r="$1" m; m=$(max); echo $(( (r * 100 + m/2) / m )); }
+
+write_attr() {  # write_attr <file> <value>
+    local f="$LED/$1" v="$2"
+    if [ -w "$f" ]; then echo "$v" > "$f"
+    else die "cannot write $f (run ./install.sh, or use sudo)"; fi
+}
+
+apply() {  # apply <raw_brightness> <"R G B">
+    local b="$1" rgb="$2"
+    write_attr multi_intensity "$rgb"
+    write_attr brightness "$b"     # re-write brightness => pushes colour+level to EC
+}
+
+cur_brightness() { cat "$LED/brightness"; }
+cur_intensity()  { cat "$LED/multi_intensity"; }
+
+# ---- colour parsing ---------------------------------------------------------
+declare -A NAMED=(
+    [white]="255 255 255"  [red]="255 0 0"      [green]="0 255 0"
+    [blue]="0 0 255"       [cyan]="0 255 255"   [magenta]="255 0 255"
+    [yellow]="255 255 0"   [orange]="255 90 0"  [amber]="255 140 0"
+    [purple]="160 0 255"   [pink]="255 60 120"  [warm]="255 160 80"
+)
+parse_color() {  # echoes "R G B"
+    local c="${1,,}"
+    if [ -n "${NAMED[$c]:-}" ]; then echo "${NAMED[$c]}"; return; fi
+    c="${c#\#}"
+    if [[ "$c" =~ ^[0-9a-f]{6}$ ]]; then
+        printf "%d %d %d\n" "0x${c:0:2}" "0x${c:2:2}" "0x${c:4:2}"; return
+    fi
+    if [[ "$1" =~ ^[0-9]+\ [0-9]+\ [0-9]+$ ]]; then echo "$1"; return; fi
+    die "bad colour '$1' (use a name, #rrggbb, or 'R G B')"
+}
+
+save_state() {
+    local dir; dir=$(dirname "$STATE")
+    [ -w "$dir" ] || [ -w "$STATE" ] || { echo "kbdlight: cannot save state to $STATE" >&2; return 0; }
+    printf 'brightness=%s\nintensity="%s"\n' "$(cur_brightness)" "$(cur_intensity)" > "$STATE" 2>/dev/null || true
+}
+
+# ---- commands ---------------------------------------------------------------
+cmd="${1:-status}"; shift || true
+
+case "$cmd" in
+    status|"")
+        need_led
+        echo "device     : $LED"
+        echo "brightness : $(cur_brightness) / $(max)  ($(raw_to_pct "$(cur_brightness)")%)"
+        echo "colour     : $(cur_intensity)  (order: $(cat "$LED/multi_index"))"
+        ;;
+    on)
+        need_led
+        local_b=$(pct_to_raw 100)
+        # prefer last saved level/colour if available
+        if [ -f "$STATE" ]; then
+            . <(sed 's/^/S_/' "$STATE" 2>/dev/null) 2>/dev/null || true
+        fi
+        b="${S_brightness:-$local_b}"; [ "$b" -gt 0 ] || b="$local_b"
+        rgb="${S_intensity:-$(cur_intensity)}"
+        apply "$b" "$rgb"; save_state
+        ;;
+    off)
+        need_led; write_attr brightness 0
+        ;;
+    toggle)
+        need_led
+        if [ "$(cur_brightness)" -gt 0 ]; then write_attr brightness 0
+        else "$0" on; fi
+        ;;
+    set)            # set <0-100>  (brightness percent)
+        need_led
+        [ $# -ge 1 ] || die "usage: kbdlight set <0-100>"
+        p="$1"; [[ "$p" =~ ^[0-9]+$ ]] && [ "$p" -le 100 ] || die "percent must be 0-100"
+        apply "$(pct_to_raw "$p")" "$(cur_intensity)"; save_state
+        ;;
+    up)   need_led; p=$(raw_to_pct "$(cur_brightness)"); p=$(( p+10 )); [ "$p" -gt 100 ] && p=100; "$0" set "$p" ;;
+    down) need_led; p=$(raw_to_pct "$(cur_brightness)"); p=$(( p-10 )); [ "$p" -lt 0 ] && p=0;   "$0" set "$p" ;;
+    color|colour)   # color <name|#rrggbb|"R G B">  [percent]
+        need_led
+        [ $# -ge 1 ] || die "usage: kbdlight color <name|#rrggbb> [brightness%]"
+        rgb=$(parse_color "$1")
+        b=$(cur_brightness); [ "$b" -gt 0 ] || b=$(pct_to_raw 100)
+        [ $# -ge 2 ] && b=$(pct_to_raw "$2")
+        apply "$b" "$rgb"; save_state
+        ;;
+    save)    need_led; save_state; echo "saved current state to $STATE" ;;
+    restore)
+        [ "${1:-}" = "--wait" ] && wait_for_led
+        need_led
+        [ -f "$STATE" ] || { echo "kbdlight: no saved state"; exit 0; }
+        . <(sed 's/^/S_/' "$STATE")
+        apply "${S_brightness:-$(pct_to_raw 60)}" "${S_intensity:-255 255 255}"
+        ;;
+    colors|colours) printf '%s\n' "${!NAMED[@]}" | sort | tr '\n' ' '; echo ;;
+    -h|--help|help)
+        cat <<EOF
+kbdlight - keyboard backlight control (COLORFUL P15 23)
+
+  kbdlight status            show current brightness/colour
+  kbdlight on | off | toggle
+  kbdlight set <0-100>       set brightness percent
+  kbdlight up | down         brightness +/- 10%
+  kbdlight color <c> [pct]   set colour (name, #rrggbb, or "R G B")
+  kbdlight colors            list colour names
+  kbdlight save              save current as default
+  kbdlight restore [--wait]  re-apply saved default (used at boot/resume)
+
+Examples:
+  kbdlight color red
+  kbdlight color "#33ccff" 80
+  kbdlight set 50
+EOF
+        ;;
+    *) die "unknown command '$cmd' (try: kbdlight --help)";;
+esac

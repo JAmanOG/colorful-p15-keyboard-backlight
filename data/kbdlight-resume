@@ -1,0 +1,6 @@
+#!/bin/sh
+# systemd system-sleep hook: re-apply the saved backlight after resume.
+# (Fixes the backlight dropping out after suspend/lock on the COLORFUL P15 23.)
+case "$1" in
+    post) /usr/local/bin/kbdlight restore --wait ;;
+esac

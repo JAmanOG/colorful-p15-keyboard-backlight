@@ -1,0 +1,11 @@
+[Unit]
+Description=Restore keyboard backlight (kbdlight)
+After=systemd-modules-load.service
+ConditionPathExists=/var/lib/kbdlight/state
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kbdlight restore --wait
+
+[Install]
+WantedBy=multi-user.target

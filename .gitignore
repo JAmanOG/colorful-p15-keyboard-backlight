@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+
+# Build artifacts (driver is built out-of-tree / by DKMS, never committed)
+*.o
+*.ko
+*.ko.zst
+*.mod
+*.mod.c
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+
+# Editors / OS
+*.swp
+*~
+.DS_Store
