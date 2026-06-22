@@ -1,0 +1,68 @@
+diff --git a/src/clevo_leds.h b/src/clevo_leds.h
+index d2c11fd..4e60a68 100644
+--- a/src/clevo_leds.h
++++ b/src/clevo_leds.h
+@@ -71,6 +71,14 @@ static bool dmi_string_in(enum dmi_field f, const char *str);
+ static enum clevo_kb_backlight_types clevo_kb_backlight_type = CLEVO_KB_BACKLIGHT_TYPE_NONE;
+ static bool leds_initialized = false;
+ 
++// Experimental override for keyboards whose GET_SPECS type byte is not recognized
++// (e.g. COLORFUL P15 23 reports 0x26). -1 = auto-detect (default).
++// 1=fixed color, 2=3-zone RGB, 6=1-zone RGB, 243(0xf3)=per-key RGB.
++static int force_clevo_kb_backlight_type = -1;
++module_param(force_clevo_kb_backlight_type, int, 0644);
++MODULE_PARM_DESC(force_clevo_kb_backlight_type,
++	"Override detected Clevo kbd backlight type (-1=auto,1=fixed,2=3zone,6=1zone,243=perkey)");
++
+ /**
+  * Color scaling quirk list
+  */
+@@ -197,7 +205,7 @@ static void clevo_leds_set_brightness_mc(struct led_classdev *led_cdev, enum led
+ }
+ 
+ static struct led_classdev clevo_led_cdev = {
+-	.name = "white:" LED_FUNCTION_KBD_BACKLIGHT,
++	.name = "white:kbdlight", // renamed from kbd_backlight so GNOME/upower/systemd don't hijack it
+ 	.max_brightness = CLEVO_KBD_BRIGHTNESS_WHITE_MAX,
+ 	.brightness_set = &clevo_leds_set_brightness,
+ 	.brightness = CLEVO_KBD_BRIGHTNESS_WHITE_DEFAULT,
+@@ -269,7 +277,7 @@ static struct mc_subled clevo_mcled_cdevs_subleds[3][3] = {
+ 
+ static struct led_classdev_mc clevo_mcled_cdevs[3] = {
+ 	{
+-		.led_cdev.name = "rgb:" LED_FUNCTION_KBD_BACKLIGHT,
++		.led_cdev.name = "rgb:kbdlight", // renamed from kbd_backlight so GNOME/upower/systemd don't hijack it
+ 		.led_cdev.max_brightness = CLEVO_KBD_BRIGHTNESS_MAX,
+ 		.led_cdev.brightness_set = &clevo_leds_set_brightness_mc,
+ 		.led_cdev.brightness = CLEVO_KBD_BRIGHTNESS_DEFAULT,
+@@ -277,7 +285,7 @@ static struct led_classdev_mc clevo_mcled_cdevs[3] = {
+ 		.subled_info = clevo_mcled_cdevs_subleds[0]
+ 	},
+ 	{
+-		.led_cdev.name = "rgb:" LED_FUNCTION_KBD_BACKLIGHT,
++		.led_cdev.name = "rgb:kbdlight", // renamed from kbd_backlight so GNOME/upower/systemd don't hijack it
+ 		.led_cdev.max_brightness = CLEVO_KBD_BRIGHTNESS_MAX,
+ 		.led_cdev.brightness_set = &clevo_leds_set_brightness_mc,
+ 		.led_cdev.brightness = CLEVO_KBD_BRIGHTNESS_DEFAULT,
+@@ -285,7 +293,7 @@ static struct led_classdev_mc clevo_mcled_cdevs[3] = {
+ 		.subled_info = clevo_mcled_cdevs_subleds[1]
+ 	},
+ 	{
+-		.led_cdev.name = "rgb:" LED_FUNCTION_KBD_BACKLIGHT,
++		.led_cdev.name = "rgb:kbdlight", // renamed from kbd_backlight so GNOME/upower/systemd don't hijack it
+ 		.led_cdev.max_brightness = CLEVO_KBD_BRIGHTNESS_MAX,
+ 		.led_cdev.brightness_set = &clevo_leds_set_brightness_mc,
+ 		.led_cdev.brightness = CLEVO_KBD_BRIGHTNESS_DEFAULT,
+@@ -361,6 +369,12 @@ int clevo_leds_init(struct platform_device *dev)
+ 			pr_notice("CLEVO_CMD_GET_BIOS_FEATURES_1 does not exist on this device or failed\n");
+ 		}
+ 	}
++	if (force_clevo_kb_backlight_type >= 0) {
++		pr_notice("Overriding detected keyboard backlight type 0x%02x with forced 0x%02x\n",
++			  clevo_kb_backlight_type, force_clevo_kb_backlight_type);
++		clevo_kb_backlight_type = force_clevo_kb_backlight_type;
++	}
++
+ 	pr_debug("Keyboard backlight type: 0x%02x\n", clevo_kb_backlight_type);
+ 
+ 	// detection of N14xWUs white keyboard backlight with five steps fails

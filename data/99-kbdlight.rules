@@ -1,4 +1,4 @@
 # Give the local "users" group write access to the keyboard-backlight LED so
 # kbdlight / kbdlight-gui can control it without root.
-ACTION=="add", SUBSYSTEM=="leds", KERNEL=="rgb:kbd_backlight", \
+ACTION=="add", SUBSYSTEM=="leds", KERNEL=="rgb:kbdlight", \
   RUN+="/bin/sh -c '/bin/chgrp users /sys/class/leds/%k/brightness /sys/class/leds/%k/multi_intensity && /bin/chmod 0664 /sys/class/leds/%k/brightness /sys/class/leds/%k/multi_intensity'"

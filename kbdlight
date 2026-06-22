@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # kbdlight - control the keyboard backlight on the COLORFUL P15 23 (and other
-#            Tongfang/Clevo laptops exposing /sys/class/leds/rgb:kbd_backlight).
+#            Tongfang/Clevo laptops exposing /sys/class/leds/rgb:kbdlight).
 #
 # The backlight is a single-zone RGB light driven by the tuxedo_keyboard driver.
 # Brightness is 0..max (usually 255); colour is an "R G B" triple (each 0..255).
@@ -10,7 +10,7 @@
 #
 set -euo pipefail
 
-LED="${KBDLIGHT_LED:-/sys/class/leds/rgb:kbd_backlight}"
+LED="${KBDLIGHT_LED:-/sys/class/leds/rgb:kbdlight}"
 STATE="${KBDLIGHT_STATE:-/var/lib/kbdlight/state}"
 
 die() { echo "kbdlight: $*" >&2; exit 1; }

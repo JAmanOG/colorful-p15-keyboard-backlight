@@ -34,7 +34,7 @@ ls /sys/class/leds | grep -i kbd                                  # (probably no
 
 | Component | What it does |
 |---|---|
-| patched `tuxedo_keyboard` (via DKMS) | exposes `/sys/class/leds/rgb:kbd_backlight` (brightness + RGB) |
+| patched `tuxedo_keyboard` (via DKMS) | exposes `/sys/class/leds/rgb:kbdlight` (brightness + RGB) |
 | `kbdlight` | command-line control (on/off/brightness/colour) |
 | `kbdlight-gui` | GTK4/Adwaita app — slider, colour swatches, custom colour picker |
 | `Fn` keys | `Fn`+`*` toggle, `Fn`+`+/-` brightness — via the `kbdlight-keys` listener service (works on any desktop, no relogin) |
@@ -70,8 +70,9 @@ sudo FORCE_TYPE=auto ./install-driver.sh  # never force (trust firmware)
 ```
 
 The `Fn` keys (`Fn`+`*` / `Fn`+`+/-`) work immediately via the `kbdlight-keys`
-listener service. The native GNOME *slider* additionally needs one logout/login
-(so gnome-settings-daemon picks up the new LED).
+listener service. There is intentionally **no GNOME system-menu slider**: the LED
+is named `rgb:kbdlight` (not `kbd_backlight`) so GNOME/upower can't grab it and
+force it to full brightness on lock/resume — see *How it works*.
 
 ## Usage
 
@@ -87,7 +88,7 @@ kbdlight save                   # remember current as the boot/resume default
 ```
 
 GUI: launch **Keyboard Backlight** from your app menu, or run `kbdlight-gui`.
-The `Fn` keys and GNOME's system-menu slider also work once installed.
+The `Fn` keys also work once installed.
 
 ---
 
@@ -100,9 +101,15 @@ The `Fn` keys and GNOME's system-menu slider also work once installed.
    `CLEVO_CMD_GET_SPECS`. Known types are `0x01` fixed, `0x02` 3-zone,
    `0x06` 1-zone, `0xf3` per-key. **This machine answers `0x26`**, which isn't in
    the table, so the driver registers no LED.
-3. The patch (`driver/0001-force-clevo-kb-backlight-type.patch`) adds a module
+3. The patch (`driver/0001-colorful-p15-kbd-backlight.patch`) adds a module
    parameter `force_clevo_kb_backlight_type`. We force **`6` (1-zone RGB)**; the
    EC happily accepts the standard Clevo RGB commands and a normal LED appears.
+4. The same patch **renames the LED** from `rgb:kbd_backlight` to `rgb:kbdlight`.
+   Anything named `*kbd_backlight*` gets auto-managed by GNOME's `gsd-power` (via
+   upower) and `systemd-backlight`, which **force it back to full brightness on
+   lock / suspend / resume** — overriding your setting (the "turns itself on at
+   full intensity" bug). Renaming it out of that namespace gives this project
+   sole control (GUI / CLI / `Fn` keys) and stops the override for good.
 
 ### Find your own backlight type
 If `install-driver.sh` can't get the light working, see what your firmware
@@ -124,7 +131,7 @@ with the same model are covered.
 ```bash
 sudo dkms autoinstall
 sudo modprobe clevo_acpi clevo_wmi
-ls /sys/class/leds/rgb:kbd_backlight
+ls /sys/class/leds/rgb:kbdlight
 ```
 
 **`Fn` keys do nothing** — check the listener service:
@@ -134,7 +141,7 @@ sudo journalctl -u kbdlight-keys.service
 ```
 The keys emit `KEY_KBDILLUMUP/DOWN/TOGGLE` on the "TUXEDO Keyboard" input device;
 `install.sh` clears GNOME's built-in bindings for them so the listener is the
-sole handler. (The native GNOME *slider* is separate and needs one relogin.)
+sole handler. (GNOME does not manage this LED at all — it's renamed out of the `kbd_backlight` namespace; see *How it works*.)
 
 **Fn keys do double brightness steps** — both the listener and GNOME are acting.
 Re-run `sudo ./install.sh` (it clears the GNOME bindings), or set them empty:
@@ -145,7 +152,7 @@ Default access is granted to the `users` group; override with
 `sudo KBDLIGHT_GROUP=video ./install.sh`.
 
 **Want independent colour zones** — try `sudo FORCE_TYPE=2 ./install-driver.sh`.
-If `/sys/class/leds/` then shows multiple `rgb:kbd_backlight*` nodes that light
+If `/sys/class/leds/` then shows multiple `rgb:kbdlight*` nodes that light
 independently, keep it; otherwise go back to the default.
 
 ## Uninstall
@@ -165,7 +172,7 @@ uninstall.sh
 kbdlight            CLI
 kbdlight-gui.py     GTK4/Adwaita GUI
 kbdlight-listen     Fn-key listener (maps KBDILLUM keys -> kbdlight)
-driver/0001-force-clevo-kb-backlight-type.patch   the one-line driver fix
+driver/0001-colorful-p15-kbd-backlight.patch   driver fix: force-type param + LED rename
 data/               udev rule, .desktop, systemd units (restore, resume, keys)
 ```
 

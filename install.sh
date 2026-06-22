@@ -11,7 +11,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # group that gets passwordless access to the LED (the desktop user is in it)
 GRP="${KBDLIGHT_GROUP:-users}"
-LED=/sys/class/leds/rgb:kbd_backlight
+LED=/sys/class/leds/rgb:kbdlight
 
 if [ ! -e "$LED/brightness" ]; then
     echo "WARNING: $LED not found — the driver isn't set up yet."

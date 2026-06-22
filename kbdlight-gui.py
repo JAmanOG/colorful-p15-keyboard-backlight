@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 kbdlight-gui — a small GTK4/Adwaita app to control the keyboard backlight
-on the COLORFUL P15 23 (tuxedo_keyboard, /sys/class/leds/rgb:kbd_backlight).
+on the COLORFUL P15 23 (tuxedo_keyboard, /sys/class/leds/rgb:kbdlight).
 
 Talks to the sysfs LED directly. Passwordless control needs the udev rule
 from this project installed (./install.sh); otherwise the files are root-only.
@@ -14,7 +14,7 @@ gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 from gi.repository import Gtk, Adw, GLib, Gdk  # noqa: E402
 
-LED = os.environ.get("KBDLIGHT_LED", "/sys/class/leds/rgb:kbd_backlight")
+LED = os.environ.get("KBDLIGHT_LED", "/sys/class/leds/rgb:kbdlight")
 
 PRESETS = [
     ("White",   (255, 255, 255)), ("Warm",   (255, 160, 80)),

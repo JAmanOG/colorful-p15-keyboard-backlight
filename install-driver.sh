@@ -16,9 +16,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 REPO="https://gitlab.com/commown/tuxedo-drivers"
 PIN="4e1fb3a8897708676ba76603f15e20ce7e9ad5fe"   # commit this patch + dkms layout match
-PATCH="$HERE/driver/0001-force-clevo-kb-backlight-type.patch"
+PATCH="$HERE/driver/0001-colorful-p15-kbd-backlight.patch"
 KVER="$(uname -r)"
-LED=/sys/class/leds/rgb:kbd_backlight
+LED=/sys/class/leds/rgb:kbdlight
 
 echo "==> dependencies"
 apt-get update -qq || true
@@ -64,7 +64,7 @@ echo "    $(dkms status tuxedo-drivers | tail -1)"
 
 # --- figure out the backlight type the firmware reports -----------------------
 echo "==> probing keyboard backlight type"
-modprobe -r clevo_wmi clevo_acpi uniwill_wmi tuxedo_keyboard 2>/dev/null || true
+modprobe -r tuxedo_io clevo_wmi clevo_acpi uniwill_wmi tuxedo_keyboard 2>/dev/null || true
 MARK="kbdlight-probe-$$"                      # marker so we read only THIS probe's log
 echo "$MARK" > /dev/kmsg 2>/dev/null || true
 echo 'module tuxedo_keyboard +p' > /sys/kernel/debug/dynamic_debug/control 2>/dev/null || true
@@ -104,7 +104,7 @@ else
 fi
 
 echo "==> reload with final settings"
-modprobe -r clevo_wmi clevo_acpi uniwill_wmi tuxedo_keyboard 2>/dev/null || true
+modprobe -r tuxedo_io clevo_wmi clevo_acpi uniwill_wmi tuxedo_keyboard 2>/dev/null || true
 [ -n "$FORCE" ] && modprobe tuxedo_keyboard "force_clevo_kb_backlight_type=$FORCE" || modprobe tuxedo_keyboard
 modprobe clevo_acpi 2>/dev/null || true
 modprobe clevo_wmi  2>/dev/null || true
